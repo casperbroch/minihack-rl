@@ -70,7 +70,7 @@ def run_search(
     best_kwargs = AgentCls.sample_hyperparams(
         optuna.trial.FixedTrial(study.best_params)
     )
-    retrain_steps = total_steps * 5
+    retrain_steps = total_steps * 20
     print(f"Starting final training phase with the following settings:")
     print(f"Algorithm: {algo}")
     print(f"Environment: {env_id}")

@@ -50,7 +50,7 @@ class BaseAgent(ABC):
         )
         self.model.learn(
             self.total_steps,
-            log_interval=self.kwargs.get("log_interval", 200),
+            log_interval=self.kwargs.get("log_interval", 2),
             callback=ckpt,
         )
 

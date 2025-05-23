@@ -43,37 +43,49 @@ class RecurrentPPOAgent(BaseAgent):
             verbose       = 1,
         )
 
-    # Optuna search space
     @staticmethod
     def sample_hyperparams(trial):
-        features_dim = trial.suggest_categorical("features_dim", [128, 256, 512])
-        net_arch_key = trial.suggest_categorical("net_arch", ["64x64", "128x128", "256x256"])
-        net_arch = {"64x64": [64, 64], "128x128": [128, 128], "256x256": [256, 256]}[net_arch_key]
+        # 1) Limit rollout lengths to moderate sizes
+        n_steps = trial.suggest_categorical("n_steps", [128, 256, 512])
+        total   = n_steps * 6  # with n_envs = 6
 
-        lr          = trial.suggest_float("lr", 1e-5, 1e-3, log=True)
-        batch_size  = trial.suggest_categorical("batch_size", [256, 512, 1024])
-        n_steps     = trial.suggest_categorical("n_steps", [64, 128, 256])
-        n_epochs    = trial.suggest_int("n_epochs", 3, 15)
-        gamma       = trial.suggest_float("gamma", 0.90, 0.9999)
-        gae_lambda  = trial.suggest_float("gae_lambda", 0.8, 0.98)
-        clip_range  = trial.suggest_float("clip_range", 0.1, 0.3)
-        ent_coef    = trial.suggest_float("ent_coef", 1e-5, 1e-2, log=True)
-        vf_coef     = trial.suggest_float("vf_coef", 0.1, 1.0)
-        max_grad    = trial.suggest_float("max_grad_norm", 0.5, 5.0)
-        target_kl   = trial.suggest_float("target_kl", 0.01, 0.2)
+        # 2) Only choose batch sizes that divide total exactly
+        possible_batches = [128, 256, 512]
+        valid_batches    = [b for b in possible_batches if total % b == 0]
+        batch_size       = trial.suggest_categorical("batch_size", valid_batches)
+
+        # 3) Drop the heaviest CNN feature dims and deep nets
+        features_dim = trial.suggest_categorical("features_dim", [128, 256])
+        net_arch_key = trial.suggest_categorical("net_arch", ["64x64", "128x128"])
+        net_arch_map = {
+            "64x64":  [64, 64],
+            "128x128":[128, 128],
+        }
+        net_arch = net_arch_map[net_arch_key]
+
+        # 4) Keep the rest of the hyperparameters as before
+        lr         = trial.suggest_float("lr", 1e-5, 1e-3, log=True)
+        n_epochs   = trial.suggest_int("n_epochs", 3, 15)
+        gamma      = trial.suggest_float("gamma", 0.90, 0.9999)
+        gae_lambda = trial.suggest_float("gae_lambda", 0.8, 0.98)
+        clip_range = trial.suggest_float("clip_range", 0.1, 0.3)
+        ent_coef   = trial.suggest_float("ent_coef", 1e-5, 1e-2, log=True)
+        vf_coef    = trial.suggest_float("vf_coef", 0.1, 1.0)
+        max_grad   = trial.suggest_float("max_grad_norm", 0.5, 5.0)
+        target_kl  = trial.suggest_float("target_kl", 0.01, 0.2)
 
         return {
-            "learning_rate": linear_schedule(lr),
-            "batch_size":    batch_size,
-            "n_steps":       n_steps,
-            "n_epochs":      n_epochs,
-            "gamma":         gamma,
-            "gae_lambda":    gae_lambda,
-            "clip_range":    clip_range,
-            "ent_coef":      ent_coef,
-            "vf_coef":       vf_coef,
-            "max_grad_norm": max_grad,
-            "target_kl":     target_kl,
-            "features_dim":  features_dim,
-            "net_arch":      net_arch,
+            "learning_rate":  linear_schedule(lr),
+            "batch_size":     batch_size,
+            "n_steps":        n_steps,
+            "n_epochs":       n_epochs,
+            "gamma":          gamma,
+            "gae_lambda":     gae_lambda,
+            "clip_range":     clip_range,
+            "ent_coef":       ent_coef,
+            "vf_coef":        vf_coef,
+            "max_grad_norm":  max_grad,
+            "target_kl":      target_kl,
+            "features_dim":   features_dim,
+            "net_arch":       net_arch,
         }

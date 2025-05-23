@@ -6,8 +6,8 @@ import os, glob, re, warnings
 import pandas as pd, matplotlib.pyplot as plt, seaborn as sns
 
 ROOT_DIR     = "./data/logs"   # env folders or flat csv files live here
-SMOOTH_WIN   = 5              # moving-avg window (episodes)
-TAIL_COUNT   = 5             # last N episodes per run for boxplot
+SMOOTH_WIN   = 20              # moving-avg window (episodes)
+TAIL_COUNT   = 20             # last N episodes per run for boxplot
 OUTDIR       = "./plots"
 os.makedirs(OUTDIR, exist_ok=True)
 

@@ -45,32 +45,38 @@ class QRDQNAgent(BaseAgent):
 
     @staticmethod
     def sample_hyperparams(trial):
-        features_dim = trial.suggest_categorical("features_dim", [128, 256, 512])
-        net_arch_key = trial.suggest_categorical("net_arch", ["64x64", "128x128", "256x256"])
-        net_arch = {"64x64": [64, 64], "128x128": [128, 128], "256x256": [256, 256]}[net_arch_key]
+        features_dim = trial.suggest_categorical("features_dim", [128, 256])
+        net_arch_key = trial.suggest_categorical("net_arch", ["64x64", "128x128"])
+        net_arch_map = {
+            "64x64":  [64, 64],
+            "128x128": [128, 128],
+        }
+        net_arch = net_arch_map[net_arch_key]
 
-        lr          = trial.suggest_float("lr", 1e-5, 1e-3, log=True)
-        buffer_size = trial.suggest_categorical("buffer_size", [100_000, 200_000, 400_000])
-        batch_size  = trial.suggest_categorical("batch_size", [256, 512, 1024])
-        train_freq  = trial.suggest_categorical("train_freq", [1, 4, 8])
-        target_int  = trial.suggest_categorical("target_update_interval", [4_000, 8_000, 16_000])
-        gamma       = trial.suggest_float("gamma", 0.90, 0.9999)
-        tau         = trial.suggest_float("tau", 0.8, 1.0)
-        max_grad    = trial.suggest_float("max_grad_norm", 5.0, 15.0)
-        expl_frac   = trial.suggest_float("exploration_fraction", 0.05, 0.25)
-        expl_final  = trial.suggest_float("exploration_final_eps", 0.01, 0.1)
+        buffer_size = trial.suggest_categorical("buffer_size", [100_000, 200_000])
+        batch_size  = trial.suggest_categorical("batch_size", [256, 512])
+
+        train_freq = trial.suggest_categorical("train_freq", [1, 4])
+        target_int = trial.suggest_categorical("target_update_interval", [4_000, 8_000])
+
+        lr         = trial.suggest_float("lr", 1e-5, 1e-3, log=True)
+        gamma      = trial.suggest_float("gamma", 0.90, 0.9999)
+        tau        = trial.suggest_float("tau", 0.8, 1.0)
+        max_grad   = trial.suggest_float("max_grad_norm", 0.5, 5.0)
+        expl_frac  = trial.suggest_float("exploration_fraction",    0.05, 0.25)
+        expl_final = trial.suggest_float("exploration_final_eps", 0.01, 0.10)
 
         return {
-            "learning_rate":  linear_schedule(lr),
-            "buffer_size":    buffer_size,
-            "batch_size":     batch_size,
-            "train_freq":     (train_freq, "step"),
-            "target_update_interval": target_int,
-            "gamma":          gamma,
-            "tau":            tau,
-            "max_grad_norm":  max_grad,
-            "exploration_fraction": expl_frac,
-            "exploration_final_eps": expl_final,
-            "features_dim":   features_dim,
-            "net_arch":       net_arch,
+            "learning_rate":           linear_schedule(lr),
+            "buffer_size":             buffer_size,
+            "batch_size":              batch_size,
+            "train_freq":              (train_freq, "step"),
+            "target_update_interval":  target_int,
+            "gamma":                   gamma,
+            "tau":                     tau,
+            "max_grad_norm":           max_grad,
+            "exploration_fraction":    expl_frac,
+            "exploration_final_eps":   expl_final,
+            "features_dim":            features_dim,
+            "net_arch":                net_arch,
         }
