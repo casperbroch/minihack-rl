@@ -46,14 +46,16 @@ class PPOAgent(BaseAgent):
 
     @staticmethod
     def sample_hyperparams(trial):
-        # 1) Limit rollout lengths to moderate sizes
-        n_steps = trial.suggest_categorical("n_steps", [128, 256, 512])
-        total   = n_steps * 6  # with n_envs = 6
+        # 1) enumerate all (n_steps, batch_size) pairs that divide exactly
+        base_steps      = [128, 256, 512]
+        possible_batches= [128, 256, 512]
+        legal_pairs = [
+            (s, b) for s in base_steps for b in possible_batches if (s * 6) % b == 0
+        ]
 
-        # 2) Only choose batch sizes that divide total exactly
-        possible_batches = [128, 256, 512]
-        valid_batches    = [b for b in possible_batches if total % b == 0]
-        batch_size       = trial.suggest_categorical("batch_size", valid_batches)
+        # 2) sample the index of the pair
+        idx = trial.suggest_int("step_batch_idx", 0, len(legal_pairs) - 1)
+        n_steps, batch_size = legal_pairs[idx]
 
         # 3) Drop the heaviest CNN feature dims and deep nets
         features_dim = trial.suggest_categorical("features_dim", [128, 256])
