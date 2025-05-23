@@ -3,8 +3,8 @@ from importlib import import_module
 # Registry of available algorithms
 REGISTERED = {
     "ppo": "ppo_agent.PPOAgent",
-    # "rppo": "rppo_agent.RPPOAgent",
-    # "qrdqn": "qrdqn_agent.QRDQNAgent",
+    "rppo": "rppo_agent.RecurrentPPOAgent",
+    "qrdqn": "qrdqn_agent.QRDQNAgent",
 }
 
 def get_agent_class(name: str):

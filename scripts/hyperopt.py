@@ -9,6 +9,7 @@ from algorithms import get_agent_class
 from config import MODELS_DIR
 
 import minihack
+import gymnasium as gym
 
 
 #  Objective function                                                   #
@@ -87,6 +88,17 @@ def run_search(
         **best_kwargs,
     )
     final_agent.train()
+    
+    print("\nEvaluating the final policy...")
+    n_eval_episodes = 50
+    mean_r, std_r = evaluate_policy(
+        final_agent.model,
+        final_agent.env,
+        n_eval_episodes=n_eval_episodes,
+        deterministic=True,
+    )
+    print(f"Evaluation over {n_eval_episodes} episodes: "
+        f"mean reward = {mean_r:.2f} ± {std_r:.2f}")
 
     print("Saving final model...")
     path = final_agent.save("best_hp_model.zip")
