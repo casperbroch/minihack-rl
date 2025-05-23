@@ -52,6 +52,7 @@ class BaseAgent(ABC):
             self.total_steps,
             log_interval=self.kwargs.get("log_interval", 2),
             callback=ckpt,
+            progress_bar=True,
         )
 
     def save(self, fname: Optional[str] = None) -> Path:      # ← fixed
