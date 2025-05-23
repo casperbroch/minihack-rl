@@ -22,6 +22,7 @@ def _objective(trial, AgentCls, env_id, total_steps, seed, n_envs):
         total_steps=total_steps,
         seed=seed,
         n_envs=n_envs,
+        log_episodes=False,
         **sampled_kwargs,
     )
     agent.train()
@@ -36,7 +37,7 @@ def _objective(trial, AgentCls, env_id, total_steps, seed, n_envs):
     return mean_reward
 
 
-#  Public helper
+# Public helper
 def run_search(
     algo: str,
     env_id: str,
@@ -47,6 +48,7 @@ def run_search(
 ):
     AgentCls = get_agent_class(algo)
 
+    print(f"Starting hyperparameter search for {algo} on {env_id}")
     study = optuna.create_study(
         study_name=f"{algo}_{env_id}",
         direction="maximize",
@@ -60,26 +62,37 @@ def run_search(
         show_progress_bar=True,
     )
 
-    print("🏆  Best value :", study.best_value)
-    print("⚙︎  Best params:", study.best_params)
+    print("Best objective value:", study.best_value)
+    print("Best hyperparameters:", study.best_params)
 
-    # retrain on the *same* steps but with best hyper-params
+    # Prepare for final training
     best_kwargs = AgentCls.sample_hyperparams(
         optuna.trial.FixedTrial(study.best_params)
     )
+    retrain_steps = total_steps * 5
+    print(f"Starting final training phase with the following settings:")
+    print(f"Algorithm: {algo}")
+    print(f"Environment: {env_id}")
+    print(f"Total training steps: {retrain_steps}")
+    print(f"Seed: {seed}")
+    print(f"Number of environments: {n_envs}")
+    print(f"Hyperparameters: {best_kwargs}\n")
+
     final_agent = AgentCls(
         env_id,
-        total_steps=total_steps*5,
+        total_steps=retrain_steps,
         seed=seed,
         n_envs=n_envs,
+        log_episodes=True,
         **best_kwargs,
     )
     final_agent.train()
+
+    print("Saving final model...")
     path = final_agent.save("best_hp_model.zip")
-    print("💾  Final model saved to", path)
+    print("Final model saved to:", path)
 
     return path, study
-
 
 #  CLI wrapper
 def _parse(argv):

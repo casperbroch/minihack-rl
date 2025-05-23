@@ -19,6 +19,7 @@ class BaseAgent(ABC):
         total_steps: int = 1_000_000,
         seed: int = 0,
         n_envs: int = 24,
+        log_episodes: bool = True,
         **kwargs,
     ):
         utils.set_global_seeds(seed)
@@ -27,7 +28,13 @@ class BaseAgent(ABC):
         self.seed, self.n_envs = seed, n_envs
         self.kwargs = kwargs
 
-        self.env = envs.make_vec_env(env_id, n_envs, seed, log_subdir=self.name)
+        self.env = envs.make_vec_env(
+            env_id,
+            n_envs,
+            seed,
+            log_episodes=log_episodes,
+            log_subdir=self.name,
+        )        
         self.model = self.build_model()
 
     # Methods subclasses MUST override
@@ -38,7 +45,7 @@ class BaseAgent(ABC):
     # Canned helpers
     def train(self):
         ckpt = CheckpointCallback(
-            save_freq=self.kwargs.get("save_freq", 50_000),
+            save_freq=self.kwargs.get("save_freq", 10_000),
             save_path=(config.MODELS_DIR / self.name).as_posix(),
         )
         self.model.learn(
