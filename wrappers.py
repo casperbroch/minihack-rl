@@ -3,10 +3,6 @@ import gymnasium as gym
 from gymnasium.wrappers import RecordEpisodeStatistics
 
 class EpisodeCSVWriter(gym.Wrapper):
-    """
-    Write every finished episode to <logs_dir>/episode_seedX.csv with:
-        r (return), l (length), t (wall-clock)
-    """
     def __init__(self, env, path):
         super().__init__(RecordEpisodeStatistics(env))
         self.file  = open(path, "w", newline="")

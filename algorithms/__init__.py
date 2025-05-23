@@ -1,6 +1,6 @@
 from importlib import import_module
 
-# --- registry of available algorithms ----------------------------
+# Registry of available algorithms
 REGISTERED = {
     "ppo": "ppo_agent.PPOAgent",
     # "rppo": "rppo_agent.RPPOAgent",

@@ -3,7 +3,6 @@ import torch.nn as nn
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 class MiniHackCNN(BaseFeaturesExtractor):
-    """glyphs_crop + blstats ➜ 256-dim vector"""
     def __init__(self, observation_space, features_dim: int = 256):
         super().__init__(observation_space, features_dim)
 
