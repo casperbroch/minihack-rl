@@ -5,6 +5,7 @@ REGISTERED = {
     "ppo": "ppo_agent.PPOAgent",
     "rppo": "rppo_agent.RecurrentPPOAgent",
     "qrdqn": "qrdqn_agent.QRDQNAgent",
+    "ppornd": "ppornd_agent.PPORNDAgent"
 }
 
 def get_agent_class(name: str):
