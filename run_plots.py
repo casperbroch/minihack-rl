@@ -1,83 +1,141 @@
-# plot_all_logs.py
-# merge every *csv episode log under ROOT_DIR, sort by wall-clock t,
-# make standard RL plots (smoothed return, smoothed ep-length, final boxplot)
+#!/usr/bin/env python3
 
-import os, glob, re, warnings
-import pandas as pd, matplotlib.pyplot as plt, seaborn as sns
+"""
+plot_monitor_csvs.py
 
-ROOT_DIR     = "./data/logs"   # env folders or flat csv files live here
-SMOOTH_WIN   = 20              # moving-avg window (episodes)
-TAIL_COUNT   = 20             # last N episodes per run for boxplot
-OUTDIR       = "./plots"
-os.makedirs(OUTDIR, exist_ok=True)
+A simple script to:
+ 1. Load all Monitor CSVs from a specified directory.
+ 2. Concatenate and sort by time (column 't').
+ 3. Save the combined CSV (including algorithm name).
+ 4. Generate four plots (filenames include algorithm name):
+    - Smoothed episodic return over episodes.
+    - Episode length over episodes.
+    - Boxplot of final policy performance (last N episodes).
+    - Smoothed return over real time (seconds).
 
-def read_csv(path):
-    df  = pd.read_csv(path)
-    fn  = os.path.basename(path)
-    env = alg = None
+Configure parameters in the `CONFIG` dictionary below and run:
+    python plot_monitor_csvs.py
+"""
 
-    # expected pattern <env>_<alg>_seed##.csv but fallbacks allowed
-    m = re.match(r"([^_]+)_([^_]+)_seed(\d+)\.csv", fn)
-    if m:
-        env, alg, seed = m.group(1), m.group(2), int(m.group(3))
-    else:
-        env = os.path.basename(os.path.dirname(path))
-        m2 = re.search(r"([A-Za-z0-9\-]+?)_", fn)
-        alg = m2.group(1) if m2 else env
-        m3 = re.search(r"\d+", fn)
-        seed = int(m3.group()) if m3 else -1
-        if seed == -1:
-            warnings.warn(f"no seed in {fn}")
-    df["env_id"], df["algorithm"], df["seed"] = env, alg, seed
-    return df
+import glob
+import os
+import pandas as pd
+import matplotlib.pyplot as plt
 
-files = glob.glob(os.path.join(ROOT_DIR, "**", "*.csv"), recursive=True)
-if not files:
-    raise FileNotFoundError(ROOT_DIR)
+# === CONFIGURATION ===
+CONFIG = {
+    # Directory containing Monitor CSVs
+    'log_dir': 'data/logs/PPO',
+    # Smoothing window (number of episodes)
+    'smoothing_window': 100,
+    # Number of last episodes for boxplot
+    'last_n_episodes': 100,
+    # Output directory for CSV and plots
+    'output_dir': 'plots',
+}
+# ======================
 
-data = pd.concat([read_csv(f) for f in files], ignore_index=True)
-data = data.sort_values("t").reset_index(drop=True)
-data.to_csv(os.path.join(OUTDIR, "merged_all_envs.csv"), index=False)
 
-data["episode"]   = data.groupby(["env_id","algorithm","seed"]).cumcount()
-data["steps"]     = data.groupby(["env_id","algorithm","seed"])["l"].cumsum()
-roll              = lambda s: s.rolling(SMOOTH_WIN, min_periods=1).mean()
-data["r_smooth"]  = data.groupby(["env_id","algorithm","seed"])["r"].transform(roll)
-data["l_smooth"]  = data.groupby(["env_id","algorithm","seed"])["l"].transform(roll)
+def load_and_concatenate_csvs(log_dir):
+    pattern = os.path.join(log_dir, '*.csv')
+    files = glob.glob(pattern)
+    if not files:
+        raise FileNotFoundError(f"No CSV files found in {log_dir}")
+    df_list = []
+    for path in files:
+        df = pd.read_csv(path, comment='#')
+        df_list.append(df)
+    combined = pd.concat(df_list, ignore_index=True)
+    combined.sort_values('t', inplace=True)
+    combined.reset_index(drop=True, inplace=True)
+    return combined
 
-for env, df_env in data.groupby("env_id"):
 
-    # smoothed return
-    plt.figure(figsize=(7,4))
-    for alg, g in df_env.groupby("algorithm"):
-        m = g.groupby("steps")["r_smooth"].mean()
-        s = g.groupby("steps")["r_smooth"].std()
-        plt.plot(m.index, m, label=alg)
-        plt.fill_between(m.index, m-s, m+s, alpha=.25)
-    plt.title(f"{env} – return"); plt.xlabel("env steps"); plt.ylabel("return")
-    plt.legend(); plt.tight_layout()
-    plt.savefig(os.path.join(OUTDIR, f"{env}_return.png"), dpi=200)
+def save_combined_csv(df, output_dir, algorithm_name):
+    os.makedirs(output_dir, exist_ok=True)
+    filename = f"{algorithm_name}_combined_monitor.csv"
+    out_path = os.path.join(output_dir, filename)
+    df.to_csv(out_path, index=False)
+    print(f"Saved combined CSV to {out_path}")
+    return out_path
 
-    # smoothed episode length
-    plt.figure(figsize=(7,4))
-    for alg, g in df_env.groupby("algorithm"):
-        m = g.groupby("steps")["l_smooth"].mean()
-        s = g.groupby("steps")["l_smooth"].std()
-        plt.plot(m.index, m, label=alg)
-        plt.fill_between(m.index, m-s, m+s, alpha=.25)
-    plt.title(f"{env} – episode length"); plt.xlabel("env steps"); plt.ylabel("length")
-    plt.legend(); plt.tight_layout()
-    plt.savefig(os.path.join(OUTDIR, f"{env}_length.png"), dpi=200)
 
-    # final boxplot
-    tails = [g.tail(min(TAIL_COUNT, len(g)))
-             for _, g in df_env.groupby(["algorithm","seed"])]
-    final = pd.concat(tails, ignore_index=True)
-    plt.figure(figsize=(5,4))
-    sns.boxplot(data=final, x="algorithm", y="r")
-    plt.title(f"{env} – final return"); plt.ylabel("return"); plt.xlabel("")
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTDIR, f"{env}_box.png"), dpi=200)
+def moving_average(series, window):
+    return series.rolling(window=window, min_periods=1).mean()
 
-print("csv   ->", os.path.join(OUTDIR, "merged_all_envs.csv"))
-print("plots ->", OUTDIR)
+
+def plot_smoothed_return(df, window, output_dir, algorithm_name):
+    df['return_smooth'] = moving_average(df['r'], window)
+    plt.figure()
+    plt.plot(df.index, df['return_smooth'])
+    plt.xlabel('Episode')
+    plt.ylabel(f'Return (MA {window})')
+    plt.title(f'Smoothed Return Over Episodes ({algorithm_name})')
+    filename = f"{algorithm_name}_smoothed_return.png"
+    out = os.path.join(output_dir, filename)
+    plt.savefig(out)
+    print(f"Plot saved: {out}")
+    plt.close()
+
+
+def plot_episode_length(df, window, output_dir, algorithm_name):
+    df['length_smooth'] = moving_average(df['l'], window)
+    plt.figure()
+    plt.plot(df.index, df['length_smooth'])
+    plt.xlabel('Episode')
+    plt.ylabel(f'Episode Length (MA {window})')
+    plt.title(f'Episode Length Over Episodes ({algorithm_name})')
+    filename = f"{algorithm_name}_episode_length.png"
+    out = os.path.join(output_dir, filename)
+    plt.savefig(out)
+    print(f"Plot saved: {out}")
+    plt.close()
+
+
+def plot_final_performance_boxplot(df, last_n, output_dir, algorithm_name):
+    final_returns = df['r'].tail(last_n)
+    plt.figure()
+    plt.boxplot(final_returns)
+    plt.xticks([1], [algorithm_name])
+    plt.ylabel('Return')
+    plt.title(f'Final {last_n} Episodes Performance ({algorithm_name})')
+    filename = f"{algorithm_name}_final_performance_boxplot.png"
+    out = os.path.join(output_dir, filename)
+    plt.savefig(out)
+    print(f"Plot saved: {out}")
+    plt.close()
+
+
+def plot_smoothed_return_time(df, window, output_dir, algorithm_name):
+    df['return_time_smooth'] = moving_average(df['r'], window)
+    plt.figure()
+    plt.plot(df['t'], df['return_time_smooth'])
+    plt.xlabel('Time (s)')
+    plt.ylabel(f'Return (MA {window})')
+    plt.title(f'Smoothed Return Over Real Time ({algorithm_name})')
+    filename = f"{algorithm_name}_smoothed_return_time.png"
+    out = os.path.join(output_dir, filename)
+    plt.savefig(out)
+    print(f"Plot saved: {out}")
+    plt.close()
+
+
+def main():
+    cfg = CONFIG
+    log_dir = cfg['log_dir']
+    window = cfg['smoothing_window']
+    last_n = cfg['last_n_episodes']
+    out_dir = cfg['output_dir']
+    algorithm = os.path.basename(log_dir.rstrip('/'))
+
+    df = load_and_concatenate_csvs(log_dir)
+    save_combined_csv(df, out_dir, algorithm)
+
+    plot_smoothed_return(df, window, out_dir, algorithm)
+    plot_episode_length(df, window, out_dir, algorithm)
+    plot_final_performance_boxplot(df, last_n, out_dir, algorithm)
+    plot_smoothed_return_time(df, window, out_dir, algorithm)
+
+
+if __name__ == '__main__':
+    main()
