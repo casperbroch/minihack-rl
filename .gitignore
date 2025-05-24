@@ -1,6 +1,7 @@
 minihack-env/
 data/
 plots/
+post-processed-data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

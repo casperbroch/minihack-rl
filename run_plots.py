@@ -3,40 +3,42 @@
 """
 plot_monitor_csvs.py
 
-A simple script to:
- 1. Load all Monitor CSVs from a specified directory.
- 2. Concatenate and sort by time (column 't').
- 3. Save the combined CSV (including algorithm name).
- 4. Generate four plots (filenames include algorithm name):
-    - Smoothed episodic return over episodes.
-    - Episode length over episodes.
-    - Boxplot of final policy performance (last N episodes).
-    - Smoothed return over real time (seconds).
-
-Configure parameters in the `CONFIG` dictionary below and run:
-    python plot_monitor_csvs.py
+  1. Load Monitor CSVs from one or more model directories.
+  2. Concatenate each into a DataFrame (with an 'algorithm' column).
+  3. Save individual combined CSVs.
+  4. Generate comparison plots across all models:
+     - Smoothed episodic return over episodes.
+     - Smoothed episode length over episodes.
+     - Boxplot of the last N episodes’ returns.
+     - Smoothed return over real time.
+  5. Copy each model folder from data/models/{algorithm} into the timestamped output.
+  6. Everything is saved into a timestamped subfolder under the base output directory.
 """
 
 import glob
 import os
+import shutil
 import pandas as pd
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 # === CONFIGURATION ===
 CONFIG = {
-    # Directory containing Monitor CSVs
-    'log_dir': 'data/logs/PPO',
-    # Smoothing window (number of episodes)
-    'smoothing_window': 100,
-    # Number of last episodes for boxplot
-    'last_n_episodes': 100,
-    # Output directory for CSV and plots
-    'output_dir': 'plots',
+    # List of directories containing Monitor CSVs, one per model
+    'log_dirs': [
+        'data/logs/RecurrentPPO',
+        #'data/logs/YourOtherModel',
+        # ...
+    ],
+    'smoothing_window': 100,       # for moving average
+    'last_n_episodes': 100,        # for boxplot
+    'output_base_dir': 'plots',    # base folder; a timestamp subfolder will be made under here
+    'model_source_base': 'data/models',  # where to find saved models
 }
 # ======================
 
-
-def load_and_concatenate_csvs(log_dir):
+def load_and_concatenate_csvs(log_dir, algorithm_name):
+    """Load all CSVs in log_dir, concat them, add algorithm column, sort by time."""
     pattern = os.path.join(log_dir, '*.csv')
     files = glob.glob(pattern)
     if not files:
@@ -44,12 +46,12 @@ def load_and_concatenate_csvs(log_dir):
     df_list = []
     for path in files:
         df = pd.read_csv(path, comment='#')
+        df['algorithm'] = algorithm_name
         df_list.append(df)
     combined = pd.concat(df_list, ignore_index=True)
     combined.sort_values('t', inplace=True)
     combined.reset_index(drop=True, inplace=True)
     return combined
-
 
 def save_combined_csv(df, output_dir, algorithm_name):
     os.makedirs(output_dir, exist_ok=True)
@@ -59,83 +61,104 @@ def save_combined_csv(df, output_dir, algorithm_name):
     print(f"Saved combined CSV to {out_path}")
     return out_path
 
-
 def moving_average(series, window):
     return series.rolling(window=window, min_periods=1).mean()
 
-
-def plot_smoothed_return(df, window, output_dir, algorithm_name):
-    df['return_smooth'] = moving_average(df['r'], window)
+def plot_smoothed_return(all_dfs, window, output_dir):
     plt.figure()
-    plt.plot(df.index, df['return_smooth'])
+    for df in all_dfs:
+        df['return_smooth'] = moving_average(df['r'], window)
+        plt.plot(df.index, df['return_smooth'], label=df['algorithm'].iloc[0])
     plt.xlabel('Episode')
     plt.ylabel(f'Return (MA {window})')
-    plt.title(f'Smoothed Return Over Episodes ({algorithm_name})')
-    filename = f"{algorithm_name}_smoothed_return.png"
-    out = os.path.join(output_dir, filename)
+    plt.title('Smoothed Return Over Episodes')
+    plt.legend()
+    out = os.path.join(output_dir, "compare_smoothed_return.png")
     plt.savefig(out)
     print(f"Plot saved: {out}")
     plt.close()
 
-
-def plot_episode_length(df, window, output_dir, algorithm_name):
-    df['length_smooth'] = moving_average(df['l'], window)
+def plot_episode_length(all_dfs, window, output_dir):
     plt.figure()
-    plt.plot(df.index, df['length_smooth'])
+    for df in all_dfs:
+        df['length_smooth'] = moving_average(df['l'], window)
+        plt.plot(df.index, df['length_smooth'], label=df['algorithm'].iloc[0])
     plt.xlabel('Episode')
     plt.ylabel(f'Episode Length (MA {window})')
-    plt.title(f'Episode Length Over Episodes ({algorithm_name})')
-    filename = f"{algorithm_name}_episode_length.png"
-    out = os.path.join(output_dir, filename)
+    plt.title('Episode Length Over Episodes')
+    plt.legend()
+    out = os.path.join(output_dir, "compare_episode_length.png")
     plt.savefig(out)
     print(f"Plot saved: {out}")
     plt.close()
 
-
-def plot_final_performance_boxplot(df, last_n, output_dir, algorithm_name):
-    final_returns = df['r'].tail(last_n)
+def plot_final_performance_boxplot(all_dfs, last_n, output_dir):
+    data = [df['r'].tail(last_n).values for df in all_dfs]
+    labels = [df['algorithm'].iloc[0] for df in all_dfs]
     plt.figure()
-    plt.boxplot(final_returns)
-    plt.xticks([1], [algorithm_name])
+    plt.boxplot(data, labels=labels)
     plt.ylabel('Return')
-    plt.title(f'Final {last_n} Episodes Performance ({algorithm_name})')
-    filename = f"{algorithm_name}_final_performance_boxplot.png"
-    out = os.path.join(output_dir, filename)
+    plt.title(f'Final {last_n} Episodes Performance')
+    out = os.path.join(output_dir, "compare_final_performance_boxplot.png")
     plt.savefig(out)
     print(f"Plot saved: {out}")
     plt.close()
 
-
-def plot_smoothed_return_time(df, window, output_dir, algorithm_name):
-    df['return_time_smooth'] = moving_average(df['r'], window)
+def plot_smoothed_return_time(all_dfs, window, output_dir):
     plt.figure()
-    plt.plot(df['t'], df['return_time_smooth'])
+    for df in all_dfs:
+        df['return_time_smooth'] = moving_average(df['r'], window)
+        plt.plot(df['t'], df['return_time_smooth'], label=df['algorithm'].iloc[0])
     plt.xlabel('Time (s)')
     plt.ylabel(f'Return (MA {window})')
-    plt.title(f'Smoothed Return Over Real Time ({algorithm_name})')
-    filename = f"{algorithm_name}_smoothed_return_time.png"
-    out = os.path.join(output_dir, filename)
+    plt.title('Smoothed Return Over Real Time')
+    plt.legend()
+    out = os.path.join(output_dir, "compare_smoothed_return_time.png")
     plt.savefig(out)
     print(f"Plot saved: {out}")
     plt.close()
 
+def copy_model_folder(alg_name, model_source_base, out_dir):
+    """Copy the model directory for alg_name into out_dir/models/alg_name."""
+    src = os.path.join(model_source_base, alg_name)
+    dst_parent = os.path.join(out_dir, 'models')
+    dst = os.path.join(dst_parent, alg_name)
+    if not os.path.isdir(src):
+        print(f"Warning: model directory not found: {src}")
+        return
+    os.makedirs(dst_parent, exist_ok=True)
+    shutil.copytree(src, dst)
+    print(f"Copied model folder from {src} to {dst}")
 
 def main():
-    cfg = CONFIG
-    log_dir = cfg['log_dir']
-    window = cfg['smoothing_window']
-    last_n = cfg['last_n_episodes']
-    out_dir = cfg['output_dir']
-    algorithm = os.path.basename(log_dir.rstrip('/'))
+    cfg               = CONFIG
+    log_dirs          = cfg['log_dirs']
+    window            = cfg['smoothing_window']
+    last_n            = cfg['last_n_episodes']
+    base_out          = cfg['output_base_dir']
+    model_src_base    = cfg['model_source_base']
 
-    df = load_and_concatenate_csvs(log_dir)
-    save_combined_csv(df, out_dir, algorithm)
+    # create timestamped output folder
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_dir   = os.path.join(base_out, timestamp)
+    os.makedirs(out_dir, exist_ok=True)
 
-    plot_smoothed_return(df, window, out_dir, algorithm)
-    plot_episode_length(df, window, out_dir, algorithm)
-    plot_final_performance_boxplot(df, last_n, out_dir, algorithm)
-    plot_smoothed_return_time(df, window, out_dir, algorithm)
+    all_dfs = []
+    # load each model’s logs and copy its folder
+    for log_dir in log_dirs:
+        alg_name = os.path.basename(log_dir.rstrip('/'))
+        # 1) concatenate CSVs
+        df = load_and_concatenate_csvs(log_dir, alg_name)
+        save_combined_csv(df, out_dir, alg_name)
+        all_dfs.append(df)
+        # 2) copy the model directory
+        copy_model_folder(alg_name, model_src_base, out_dir)
 
+    # now make comparison plots
+    plot_smoothed_return(all_dfs, window, out_dir)
+    plot_episode_length(all_dfs, window, out_dir)
+    plot_final_performance_boxplot(all_dfs, last_n, out_dir)
+    plot_smoothed_return_time(all_dfs, window, out_dir)
 
 if __name__ == '__main__':
     main()
