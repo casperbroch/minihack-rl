@@ -1,24 +1,103 @@
-import argparse, sys
+from pathlib import Path
+import argparse
+
+from stable_baselines3.common.evaluation import evaluate_policy
+
 from algorithms import get_agent_class
-import minihack
+from config import MODELS_DIR
 
-def _parse(argv):
-    p = argparse.ArgumentParser()
-    p.add_argument("--algo", default="ppo",
-                   help="ppo | rppo | qrdqn | ...")
-    p.add_argument("--env",  required=True,
-                   help="Gym/MiniHack env id")
-    p.add_argument("--steps", type=int, default=100_000)
-    p.add_argument("--seed",  type=int, default=0)
-    p.add_argument("--n-envs",type=int, default=24)
-    return p.parse_args(argv)
+import minihack  # registers MiniHack environments
+import gymnasium as gym
 
-def main(argv=None):
-    args   = _parse(argv or sys.argv[1:])
-    Agent  = get_agent_class(args.algo)
-    agent  = Agent(args.env, args.steps, args.seed, n_envs=args.n_envs)
-    path   = agent.train_and_save()
-    print(f"✅ done – model saved to {path}")
+# === DEFAULT CONFIGURATION ===
+# Override these via CLI if you like
+DEFAULT_ALGO = "ppo"                # e.g. "ppo", "dqn", "sac"
+DEFAULT_ENV_ID = "MiniHack-Room-5x5-v0"
+DEFAULT_TOTAL_STEPS = 100_000       # Total number of training steps
+DEFAULT_SEED = 0                    # Random seed
+DEFAULT_N_ENVS = 24                 # Number of parallel environments
+
+# === MANUAL HYPERPARAMETERS ===
+# Values chosen based on recommended defaults and empirical best practices
+HYPERPARAMS = {
+    # Learning and optimization
+    "learning_rate": 0.0008663,
+    "n_steps": 128,
+    "batch_size": 256,
+    "n_epochs": 3,
+    # Discounting and advantage estimation
+    "gamma": 0.9873,
+    "gae_lambda": 0.8058,
+    # Clipping and entropy regularization
+    "clip_range": 0.283514,
+    "ent_coef": 0.00122655,
+    # Value function loss coefficient and gradient norm
+    "vf_coef": 0.9677,
+    "max_grad_norm": 0.9249,
+    # KL divergence target
+    "target_kl": 0.1699,
+    # Policy network architecture
+    "features_dim": 128,
+    "net_arch": [128, 128],
+}
+# === END CONFIGURATION ===
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train an RL agent with manual hyperparameters")
+    parser.add_argument("--algo", default=DEFAULT_ALGO, help="Algorithm key (e.g. ppo, dqn, sac)")
+    parser.add_argument("--env", dest="env_id", default=DEFAULT_ENV_ID, help="Gym/MiniHack environment id")
+    parser.add_argument("--steps", dest="total_steps", type=int, default=DEFAULT_TOTAL_STEPS,
+                        help="Total training steps")
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Random seed")
+    parser.add_argument("--n-envs", type=int, dest="n_envs", default=DEFAULT_N_ENVS,
+                        help="Number of parallel environments")
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    # Use CLI arguments
+    algo = args.algo
+    env_id = args.env_id
+    total_steps = args.total_steps
+    seed = args.seed
+    n_envs = args.n_envs
+
+    # Instantiate agent class
+    AgentCls = get_agent_class(algo)
+    print(f"Starting training for {algo.upper()} on {env_id}")
+    print(f"Settings: steps={total_steps}, seed={seed}, n_envs={n_envs}")
+    print(f"Hyperparameters: {HYPERPARAMS}")
+
+    # Create and train the agent
+    agent = AgentCls(
+        env_id,
+        total_steps=total_steps,
+        seed=seed,
+        n_envs=n_envs,
+        log_episodes=True,
+        **HYPERPARAMS,
+    )
+    agent.train()
+
+    # Evaluate the trained policy
+    print("\nEvaluating the trained policy over 50 episodes...")
+    mean_reward, std_reward = evaluate_policy(
+        agent.model,
+        agent.env,
+        n_eval_episodes=50,
+        deterministic=True,
+    )
+    print(f"Mean reward = {mean_reward:.2f} ± {std_reward:.2f}")
+
+    # Save the model
+    save_dir = Path(MODELS_DIR)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    save_path = save_dir / f"{algo}_{env_id}_model.zip"
+    agent.save(str(save_path))
+    print(f"Model saved to: {save_path}")
+
 
 if __name__ == "__main__":
     main()

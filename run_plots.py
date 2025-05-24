@@ -26,8 +26,8 @@ from datetime import datetime
 CONFIG = {
     # List of directories containing Monitor CSVs, one per model
     'log_dirs': [
-        'data/logs/RecurrentPPO',
-        #'data/logs/YourOtherModel',
+        'data/logs/PPO',
+        'data/logs/PPO_RND',
         # ...
     ],
     'smoothing_window': 100,       # for moving average
