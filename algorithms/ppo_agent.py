@@ -1,3 +1,10 @@
+# ppo_agent.py  : PPO agent with custom feature extractor and hyperparameter sampling.
+#
+# Author       : Casper Bröcheler <casper.jxb@gmail.com>
+# GitHub       : https://github.com/casperbroch
+# Affiliation  : Maastricht University
+
+
 from stable_baselines3 import PPO
 
 from .base        import BaseAgent
@@ -9,9 +16,8 @@ class PPOAgent(BaseAgent):
     name     = "PPO"
     algo_cls = PPO
 
-    #  Build the (untrained) SB3 model
+    # Instantiate and return a configured PPO model
     def build_model(self):
-        # network size
         features_dim = self.kwargs.get("features_dim", 256)
         net_arch     = self.kwargs.get("net_arch")        # may be None
 
@@ -44,20 +50,20 @@ class PPOAgent(BaseAgent):
             verbose       = 1,
         )
 
+    # Define hyperparameter search space for optimizer Optuna
     @staticmethod
     def sample_hyperparams(trial):
-        # 1) enumerate all (n_steps, batch_size) pairs that divide exactly
+        # enumerate all (n_steps, batch_size) pairs that divide exactly
         base_steps      = [128, 256, 512]
         possible_batches= [128, 256, 512]
         legal_pairs = [
             (s, b) for s in base_steps for b in possible_batches if (s * 6) % b == 0
         ]
 
-        # 2) sample the index of the pair
+        # sample the index of the pair
         idx = trial.suggest_int("step_batch_idx", 0, len(legal_pairs) - 1)
         n_steps, batch_size = legal_pairs[idx]
 
-        # 3) Drop the heaviest CNN feature dims and deep nets
         features_dim = trial.suggest_categorical("features_dim", [128, 256])
         net_arch_key = trial.suggest_categorical("net_arch", ["64x64", "128x128"])
         net_arch_map = {
@@ -66,7 +72,6 @@ class PPOAgent(BaseAgent):
         }
         net_arch = net_arch_map[net_arch_key]
 
-        # 4) Keep the rest of the hyperparameters as before
         lr         = trial.suggest_float("lr", 1e-5, 1e-3, log=True)
         n_epochs   = trial.suggest_int("n_epochs", 3, 15)
         gamma      = trial.suggest_float("gamma", 0.90, 0.9999)

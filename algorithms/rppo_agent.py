@@ -1,3 +1,10 @@
+# rppo_agent.py  : Recurrent PPO agent with LSTM policy and custom CNN features.
+#
+# Author       : Casper Bröcheler <casper.jxb@gmail.com>
+# GitHub       : https://github.com/casperbroch
+# Affiliation  : Maastricht University
+
+
 from sb3_contrib import RecurrentPPO
 from .base      import BaseAgent
 from features   import MiniHackCNN
@@ -7,9 +14,9 @@ import config
 
 class RecurrentPPOAgent(BaseAgent):
     name     = "RecurrentPPO"
-    algo_cls = RecurrentPPO      # SB3-contrib implementation
+    algo_cls = RecurrentPPO
 
-    # Build the (untrained) SB3 model
+    # Instantiate RecurrentPPO with MultiInputLstmPolicy and custom feature extractor
     def build_model(self):
         features_dim = self.kwargs.get("features_dim", 256)
         net_arch     = self.kwargs.get("net_arch")  # may be None
@@ -24,11 +31,10 @@ class RecurrentPPOAgent(BaseAgent):
         return self.algo_cls(
             policy="MultiInputLstmPolicy",
             env=self.env,
-            # Hyper-parameters (defaults match PPOAgent unless stated)
             learning_rate = self.kwargs.get("learning_rate",
                                             linear_schedule(3e-4)),
             batch_size    = self.kwargs.get("batch_size",    1024),
-            n_steps       = self.kwargs.get("n_steps",       128),  # rollout len
+            n_steps       = self.kwargs.get("n_steps",       128),
             n_epochs      = self.kwargs.get("n_epochs",      10),
             gamma         = self.kwargs.get("gamma",         0.995),
             gae_lambda    = self.kwargs.get("gae_lambda",    0.95),
@@ -37,26 +43,25 @@ class RecurrentPPOAgent(BaseAgent):
             vf_coef       = self.kwargs.get("vf_coef",       0.5),
             max_grad_norm = self.kwargs.get("max_grad_norm", 1.0),
             target_kl     = self.kwargs.get("target_kl",     0.03),
-            # Recurrent-specific
             policy_kwargs = policy_kwargs,
             device        = self.kwargs.get("device", config.DEFAULT_DEVICE),
             verbose       = 1,
         )
 
+    # Define hyperparameter search space for optimizer Optuna
     @staticmethod
     def sample_hyperparams(trial):
-        # 1) enumerate all (n_steps, batch_size) pairs that divide exactly
+        # enumerate all (n_steps, batch_size) pairs that divide exactly
         base_steps      = [128, 256, 512]
         possible_batches= [128, 256, 512]
         legal_pairs = [
             (s, b) for s in base_steps for b in possible_batches if (s * 6) % b == 0
         ]
 
-        # 2) sample the index of the pair
+        # sample the index of the pair
         idx = trial.suggest_int("step_batch_idx", 0, len(legal_pairs) - 1)
         n_steps, batch_size = legal_pairs[idx]
 
-        # 3) Drop the heaviest CNN feature dims and deep nets
         features_dim = trial.suggest_categorical("features_dim", [128, 256])
         net_arch_key = trial.suggest_categorical("net_arch", ["64x64", "128x128"])
         net_arch_map = {
@@ -65,7 +70,6 @@ class RecurrentPPOAgent(BaseAgent):
         }
         net_arch = net_arch_map[net_arch_key]
 
-        # 4) Keep the rest of the hyperparameters as before
         lr         = trial.suggest_float("lr", 1e-5, 1e-3, log=True)
         n_epochs   = trial.suggest_int("n_epochs", 3, 15)
         gamma      = trial.suggest_float("gamma", 0.90, 0.9999)

@@ -1,8 +1,16 @@
+# features.py  : CNN-based feature extractor for MiniHack observations.
+#
+# Author       : Casper Bröcheler <casper.jxb@gmail.com>
+# GitHub       : https://github.com/casperbroch
+# Affiliation  : Maastricht University
+
+
 import torch as th
 import torch.nn as nn
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 class MiniHackCNN(BaseFeaturesExtractor):
+    # Extract and embed glyphs, then combine with blstats via conv + MLP
     def __init__(self, observation_space, features_dim: int = 256):
         super().__init__(observation_space, features_dim)
 
@@ -22,6 +30,7 @@ class MiniHackCNN(BaseFeaturesExtractor):
             nn.ReLU(),
         )
 
+    # Embed glyphs, apply conv, concatenate blstats, then MLP to features
     def forward(self, obs):
         x = self.embed(obs["glyphs_crop"].long()).permute(0, 3, 1, 2)
         x = self.conv(x)

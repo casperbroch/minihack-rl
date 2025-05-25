@@ -1,3 +1,10 @@
+# qrdqn_agent.py  : QR-DQN agent with custom CNN feature extractor and hyperparameter sampling.
+#
+# Author       : Casper Bröcheler <casper.jxb@gmail.com>
+# GitHub       : https://github.com/casperbroch
+# Affiliation  : Maastricht University
+
+
 from sb3_contrib import QRDQN
 from .base      import BaseAgent
 from features   import MiniHackCNN
@@ -9,9 +16,10 @@ class QRDQNAgent(BaseAgent):
     name     = "QRDQN"
     algo_cls = QRDQN
 
+    # Instantiate and return a configured QR-DQN model
     def build_model(self):
         features_dim = self.kwargs.get("features_dim", 256)
-        net_arch     = self.kwargs.get("net_arch")  # may be None
+        net_arch     = self.kwargs.get("net_arch")
 
         policy_kwargs = dict(
             features_extractor_class  = MiniHackCNN,
@@ -23,7 +31,6 @@ class QRDQNAgent(BaseAgent):
         return self.algo_cls(
             policy="MultiInputPolicy",
             env=self.env,
-            # --- Core DQN/QR-DQN hyper-parameters ---
             learning_rate     = self.kwargs.get("learning_rate",
                                                 linear_schedule(2.5e-4)),
             buffer_size       = self.kwargs.get("buffer_size",       200_000),
@@ -42,7 +49,8 @@ class QRDQNAgent(BaseAgent):
             device            = self.kwargs.get("device", config.DEFAULT_DEVICE),
             verbose           = 1,
         )
-
+    
+    # Define hyperparameter search space for optimizer Optuna
     @staticmethod
     def sample_hyperparams(trial):
         features_dim = trial.suggest_categorical("features_dim", [128, 256])

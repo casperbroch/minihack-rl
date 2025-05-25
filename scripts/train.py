@@ -1,3 +1,10 @@
+# train.py    : CLI-driven training script with manual hyperparameters.
+#
+# Author       : Casper Bröcheler <casper.jxb@gmail.com>
+# GitHub       : https://github.com/casperbroch
+# Affiliation  : Maastricht University
+
+
 from pathlib import Path
 import argparse
 
@@ -6,19 +13,17 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from algorithms import get_agent_class
 from config import MODELS_DIR
 
-import minihack  # registers MiniHack environments
+import minihack
 import gymnasium as gym
 
-# === DEFAULT CONFIGURATION ===
-# Override these via CLI if you like
-DEFAULT_ALGO = "ppo"                # e.g. "ppo", "dqn", "sac"
+# Default configuration (overridable via CLI)
+DEFAULT_ALGO = "ppo"                        # e.g. "ppo", "dqn", "sac"
 DEFAULT_ENV_ID = "MiniHack-Room-5x5-v0"
-DEFAULT_TOTAL_STEPS = 100_000       # Total number of training steps
-DEFAULT_SEED = 0                    # Random seed
-DEFAULT_N_ENVS = 24                 # Number of parallel environments
+DEFAULT_TOTAL_STEPS = 100_000
+DEFAULT_SEED = 0 
+DEFAULT_N_ENVS = 12
 
-# === MANUAL HYPERPARAMETERS ===
-# Values chosen based on recommended defaults and empirical best practices
+# Manual hyperparameters for training
 HYPERPARAMS = {
     # Learning and optimization
     "learning_rate": 0.0008663,
@@ -40,9 +45,8 @@ HYPERPARAMS = {
     "features_dim": 128,
     "net_arch": [128, 128],
 }
-# === END CONFIGURATION ===
 
-
+# Parse command-line arguments for training settings
 def parse_args():
     parser = argparse.ArgumentParser(description="Train an RL agent with manual hyperparameters")
     parser.add_argument("--algo", default=DEFAULT_ALGO, help="Algorithm key (e.g. ppo, dqn, sac)")
@@ -54,7 +58,7 @@ def parse_args():
                         help="Number of parallel environments")
     return parser.parse_args()
 
-
+# Instantiate agent, train, evaluate, and save the model
 def main():
     args = parse_args()
     # Use CLI arguments

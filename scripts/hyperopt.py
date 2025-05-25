@@ -1,3 +1,10 @@
+# hyperopt.py : Hyperparameter optimization for RL agents using Optuna and CLI interface.
+#
+# Author       : Casper Bröcheler <casper.jxb@gmail.com>
+# GitHub       : https://github.com/casperbroch
+# Affiliation  : Maastricht University
+
+
 from pathlib import Path
 import argparse
 import sys
@@ -11,8 +18,7 @@ from config import MODELS_DIR
 import minihack
 import gymnasium as gym
 
-
-#  Objective function                                                   #
+# Sample hyperparams, build/train agent, then return mean eval reward
 def _objective(trial, AgentCls, env_id, total_steps, seed, n_envs):
     # 1) sample per-algorithm kwargs
     sampled_kwargs = AgentCls.sample_hyperparams(trial)
@@ -37,8 +43,7 @@ def _objective(trial, AgentCls, env_id, total_steps, seed, n_envs):
     )
     return mean_reward
 
-
-# Public helper
+# Create Optuna study, optimize, then retrain and evaluate best model
 def run_search(
     algo: str,
     env_id: str,
@@ -66,7 +71,6 @@ def run_search(
     print("Best objective value:", study.best_value)
     print("Best hyperparameters:", study.best_params)
 
-    # Prepare for final training
     best_kwargs = AgentCls.sample_hyperparams(
         optuna.trial.FixedTrial(study.best_params)
     )
@@ -106,7 +110,7 @@ def run_search(
 
     return path, study
 
-#  CLI wrapper
+# Parse command-line arguments for hyperparameter search
 def _parse(argv):
     p = argparse.ArgumentParser()
     p.add_argument("--algo", default="ppo", help="Algorithm key (see registry)")
@@ -118,7 +122,7 @@ def _parse(argv):
     p.add_argument("--n-envs", type=int, default=24)
     return p.parse_args(argv)
 
-
+# CLI entry point: parse args and launch run_search
 def main(argv=None):
     args = _parse(argv or sys.argv[1:])
     run_search(

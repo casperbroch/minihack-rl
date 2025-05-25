@@ -1,3 +1,10 @@
+# envs.py     : Environment creation utilities with logging and wrappers.
+#
+# Author       : Casper Bröcheler <casper.jxb@gmail.com>
+# GitHub       : https://github.com/casperbroch
+# Affiliation  : Maastricht University
+
+
 import gymnasium as gym
 from gymnasium.wrappers import TimeLimit, RecordEpisodeStatistics
 from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
@@ -6,12 +13,12 @@ from wrappers import EpisodeCSVWriter
 from config   import LOGS_DIR
 
 
-#  Helpers
 def _single_env(env_id: str,
                 seed: int,
                 log_episodes: bool,
                 log_subdir: str):
-
+    
+    # Create and seed a single Gym env, optionally wrapping for episode logging
     def thunk():
         base = gym.make(
             env_id,
@@ -31,8 +38,7 @@ def _single_env(env_id: str,
 
     return thunk
 
-
-#  Public factory
+# Build a vectorized set of n_envs parallel envs with monitoring
 def make_vec_env(env_id: str,
                  n_envs: int,
                  seed: int,
@@ -45,17 +51,3 @@ def make_vec_env(env_id: str,
         for i in range(n_envs)
     ]
     return VecMonitor(DummyVecEnv(thunks))
-
-
-#  Evaluation env
-def make_eval_env(env_id: str, seed: int):
-    def thunk():
-        env = gym.make(
-            env_id,
-            observation_keys=("glyphs_crop", "blstats", "pixel"),
-            render_mode=None,
-        )
-        env = RecordEpisodeStatistics(env)
-        env.reset(seed=seed)
-        return env
-    return DummyVecEnv([thunk()])

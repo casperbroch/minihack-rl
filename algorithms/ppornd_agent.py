@@ -1,3 +1,10 @@
+# ppornd_agent.py  : PPO with RND intrinsic rewards for exploration.
+#
+# Author       : Casper Bröcheler <casper.jxb@gmail.com>
+# GitHub       : https://github.com/casperbroch
+# Affiliation  : Maastricht University
+
+
 import torch as th, torch.nn as nn
 from torch.optim import Adam
 from stable_baselines3 import PPO
@@ -8,8 +15,9 @@ from features     import MiniHackCNN
 from utils        import linear_schedule
 import config
 
-# ---------- RND --------------------------------------------------------------
+# Predictor–target network for RND intrinsic reward
 class _RNDNet(nn.Module):
+     # Freeze encoder and target, init predictor optimizer
     def __init__(self, obs_space, feat_dim=256, emb_dim=128, device="cpu"):
         super().__init__()
         self.enc = MiniHackCNN(obs_space, feat_dim)
@@ -24,6 +32,8 @@ class _RNDNet(nn.Module):
         self.opt  = Adam(self.pred.parameters(), lr=1e-4)
         self.to(device)
         self.device = device
+
+    # Compute predicted and target embeddings
     def forward(self, obs):
         with th.no_grad():
             f = self.enc(obs)
@@ -31,12 +41,15 @@ class _RNDNet(nn.Module):
         p = self.pred(f)
         return p, t
 
+# Wrap VecEnv to add RND-based intrinsic rewards
 class _RNDWrap(VecEnvWrapper):
     def __init__(self, venv, coef=0.25, feat_dim=256, device="cpu"):
         super().__init__(venv)
         self.rnd = _RNDNet(venv.observation_space, feat_dim, device=device)
         self.rms = RunningMeanStd(shape=())
         self.coef = coef
+
+    # Step env, compute and normalize intrinsic reward, update RND predictor
     def step_wait(self):
         obs, rewards, dones, infos = self.venv.step_wait()
         obs_tensor = {k: th.as_tensor(v, device=self.rnd.device) for k, v in obs.items()}
@@ -49,19 +62,22 @@ class _RNDWrap(VecEnvWrapper):
         loss.backward()
         self.rnd.opt.step()
         return obs, rewards + self.coef * int_reward, dones, infos
+    
+    # Reset underlying env
     def reset(self):
         return self.venv.reset()
     
-# PPO + RND agent 
 class PPORNDAgent(BaseAgent):
     name     = "PPO_RND"
     algo_cls = PPO
 
+     # Build PPO model wrapped with RND environment
     def build_model(self):
         feat_dim = self.kwargs.get("features_dim", 256)
         net_arch = self.kwargs.get("net_arch")
         int_coef = self.kwargs.get("intrinsic_coef", 0.25)
 
+        # Wrap env to inject intrinsic rewards
         self.env = _RNDWrap(self.env, coef=int_coef,
                             feat_dim=feat_dim,
                             device=self.kwargs.get("device",
@@ -90,11 +106,15 @@ class PPORNDAgent(BaseAgent):
             device        = self.kwargs.get("device", config.DEFAULT_DEVICE),
             verbose       = 1,
         )
-
+    
+    # Define hyperparameter search space for optimizer Optuna
     @staticmethod
     def sample_hyperparams(trial):
+        # enumerate all (n_steps, batch_size) pairs that divide exactly
         base_steps, batches = [128, 256, 512], [128, 256, 512]
         legal = [(s, b) for s in base_steps for b in batches if (s*6)%b==0]
+
+        # sample the index of the pair
         idx = trial.suggest_int("sb_idx", 0, len(legal)-1)
         n_steps, batch_size = legal[idx]
 

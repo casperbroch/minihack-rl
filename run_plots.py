@@ -1,19 +1,9 @@
-#!/usr/bin/env python3
+# run_plots.py  : Load training logs, aggregate results, and generate performance plots.
+#
+# Author       : Casper Bröcheler <casper.jxb@gmail.com>
+# GitHub       : https://github.com/casperbroch
+# Affiliation  : Maastricht University
 
-"""
-plot_monitor_csvs.py
-
-  1. Load Monitor CSVs from one or more model directories.
-  2. Concatenate each into a DataFrame (with an 'algorithm' column).
-  3. Save individual combined CSVs.
-  4. Generate comparison plots across all models:
-     - Smoothed episodic return over episodes.
-     - Smoothed episode length over episodes.
-     - Boxplot of the last N episodes’ returns.
-     - Smoothed return over real time.
-  5. Copy each model folder from data/models/{algorithm} into the timestamped output.
-  6. Everything is saved into a timestamped subfolder under the base output directory.
-"""
 
 import glob
 import os
@@ -22,23 +12,21 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-# === CONFIGURATION ===
 CONFIG = {
-    # List of directories containing Monitor CSVs, one per model
     'log_dirs': [
-        #'data/logs/PPO',
-        'data/logs/PPO_RND',
-        # ...
+        'data/logs/PPO',
+        #'data/logs/RecurrentPPO',
+        #'data/logs/PPO_RND',
+        #'data/logs/QRDQN',
     ],
-    'smoothing_window': 100,       # for moving average
-    'last_n_episodes': 100,        # for boxplot
-    'output_base_dir': 'plots',    # base folder; a timestamp subfolder will be made under here
-    'model_source_base': 'data/models',  # where to find saved models
+    'smoothing_window': 100,                # for moving average
+    'last_n_episodes': 100,                 # for boxplot
+    'output_base_dir': 'plots',             # base folder; a timestamp subfolder will be made under here
+    'model_source_base': 'data/models',        # where to find saved models
 }
-# ======================
 
+# Read all CSVs in log_dir, add algorithm tag, and sort by elapsed time
 def load_and_concatenate_csvs(log_dir, algorithm_name):
-    """Load all CSVs in log_dir, concat them, add algorithm column, sort by time."""
     pattern = os.path.join(log_dir, '*.csv')
     files = glob.glob(pattern)
     if not files:
@@ -53,6 +41,7 @@ def load_and_concatenate_csvs(log_dir, algorithm_name):
     combined.reset_index(drop=True, inplace=True)
     return combined
 
+# Ensure output_dir exists, then write the combined DataFrame to CSV
 def save_combined_csv(df, output_dir, algorithm_name):
     os.makedirs(output_dir, exist_ok=True)
     filename = f"{algorithm_name}_combined_monitor.csv"
@@ -61,9 +50,11 @@ def save_combined_csv(df, output_dir, algorithm_name):
     print(f"Saved combined CSV to {out_path}")
     return out_path
 
+# Compute a rolling mean over the given window
 def moving_average(series, window):
     return series.rolling(window=window, min_periods=1).mean()
 
+# Plot and save smoothed returns over episodes for each algorithm
 def plot_smoothed_return(all_dfs, window, output_dir):
     plt.figure()
     for df in all_dfs:
@@ -78,6 +69,7 @@ def plot_smoothed_return(all_dfs, window, output_dir):
     print(f"Plot saved: {out}")
     plt.close()
 
+# Plot and save smoothed episode lengths over episodes
 def plot_episode_length(all_dfs, window, output_dir):
     plt.figure()
     for df in all_dfs:
@@ -92,6 +84,7 @@ def plot_episode_length(all_dfs, window, output_dir):
     print(f"Plot saved: {out}")
     plt.close()
 
+# Create and save a boxplot of the last_n episode returns
 def plot_final_performance_boxplot(all_dfs, last_n, output_dir):
     data = [df['r'].tail(last_n).values for df in all_dfs]
     labels = [df['algorithm'].iloc[0] for df in all_dfs]
@@ -104,6 +97,7 @@ def plot_final_performance_boxplot(all_dfs, last_n, output_dir):
     print(f"Plot saved: {out}")
     plt.close()
 
+# Plot and save smoothed returns as a function of real time
 def plot_smoothed_return_time(all_dfs, window, output_dir):
     plt.figure()
     for df in all_dfs:
@@ -118,8 +112,8 @@ def plot_smoothed_return_time(all_dfs, window, output_dir):
     print(f"Plot saved: {out}")
     plt.close()
 
+# Copy the saved model directory for the algorithm into the output folder
 def copy_model_folder(alg_name, model_source_base, out_dir):
-    """Copy the model directory for alg_name into out_dir/models/alg_name."""
     src = os.path.join(model_source_base, alg_name)
     dst_parent = os.path.join(out_dir, 'models')
     dst = os.path.join(dst_parent, alg_name)
@@ -130,6 +124,7 @@ def copy_model_folder(alg_name, model_source_base, out_dir):
     shutil.copytree(src, dst)
     print(f"Copied model folder from {src} to {dst}")
 
+# Set up output directories, process each log_dir, and generate all plots
 def main():
     cfg               = CONFIG
     log_dirs          = cfg['log_dirs']
@@ -138,23 +133,18 @@ def main():
     base_out          = cfg['output_base_dir']
     model_src_base    = cfg['model_source_base']
 
-    # create timestamped output folder
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir   = os.path.join(base_out, timestamp)
     os.makedirs(out_dir, exist_ok=True)
 
     all_dfs = []
-    # load each model’s logs and copy its folder
     for log_dir in log_dirs:
         alg_name = os.path.basename(log_dir.rstrip('/'))
-        # 1) concatenate CSVs
         df = load_and_concatenate_csvs(log_dir, alg_name)
         save_combined_csv(df, out_dir, alg_name)
         all_dfs.append(df)
-        # 2) copy the model directory
         copy_model_folder(alg_name, model_src_base, out_dir)
 
-    # now make comparison plots
     plot_smoothed_return(all_dfs, window, out_dir)
     plot_episode_length(all_dfs, window, out_dir)
     plot_final_performance_boxplot(all_dfs, last_n, out_dir)
