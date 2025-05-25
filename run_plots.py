@@ -26,7 +26,7 @@ from datetime import datetime
 CONFIG = {
     # List of directories containing Monitor CSVs, one per model
     'log_dirs': [
-        'data/logs/PPO',
+        #'data/logs/PPO',
         'data/logs/PPO_RND',
         # ...
     ],
