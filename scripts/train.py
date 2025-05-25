@@ -23,27 +23,84 @@ DEFAULT_TOTAL_STEPS = 100_000
 DEFAULT_SEED = 0 
 DEFAULT_N_ENVS = 12
 
-# Manual hyperparameters for training
-HYPERPARAMS = {
-    # Learning and optimization
+# Manual hyperparameters per algorithm
+
+# Found after 12 750k steps trials
+HYPERPARAMS_PPO = {
     "learning_rate": 0.0008663,
     "n_steps": 128,
     "batch_size": 256,
     "n_epochs": 3,
-    # Discounting and advantage estimation
     "gamma": 0.9873,
     "gae_lambda": 0.8058,
-    # Clipping and entropy regularization
-    "clip_range": 0.283514,
+    "clip_range": 0.29815,
     "ent_coef": 0.00122655,
-    # Value function loss coefficient and gradient norm
     "vf_coef": 0.9677,
     "max_grad_norm": 0.9249,
-    # KL divergence target
     "target_kl": 0.1699,
-    # Policy network architecture
     "features_dim": 128,
     "net_arch": [128, 128],
+}
+
+# Found after 12 750k steps trials (copy from PPO, due to lack of time)
+HYPERPARAMS_RECURRENTPPO = {
+    "learning_rate": 0.0008663,
+    "n_steps": 128,
+    "batch_size": 256,
+    "n_epochs": 3,
+    "gamma": 0.9873,
+    "gae_lambda": 0.8058,
+    "clip_range": 0.29815,
+    "ent_coef": 0.00122655,
+    "vf_coef": 0.9677,
+    "max_grad_norm": 0.9249,
+    "target_kl": 0.1699,
+    "features_dim": 128,
+    "net_arch": [128, 128],
+}
+
+# Found after 12 750k steps trials
+HYPERPARAMS_PPO_RND = {
+    "learning_rate": 0.000347,
+    "n_steps": 256,
+    "batch_size": 256,
+    "n_epochs": 7,
+    "gamma": 0.9728,
+    "gae_lambda": 0.86236,
+    "clip_range": 0.27189,
+    "ent_coef": 0.0010915,
+    "vf_coef": 0.24747,
+    "max_grad_norm": 4.1535,
+    "target_kl": 0.1595,
+    "features_dim": 128,
+    "net_arch": [128, 128],
+    "intrinsic_coef": 0.173604,
+}
+
+# Found after 12 500k steps trials
+HYPERPARAMS_QRDQN = {
+    "learning_rate": 0.00012677,
+    "buffer_size": 200_000,
+    "learning_starts": 8000,
+    "batch_size": 256,
+    "gamma": 0.94387,
+    "train_freq": 1,
+    "gradient_steps": 1,
+    "target_update_interval": 4000,
+    "tau": 0.88873,
+    "exploration_fraction": 0.16524,
+    "exploration_initial_eps": 1.0,
+    "exploration_final_eps": 0.015412,
+    "max_grad_norm": 1.05683,
+    "features_dim": 128,
+    "net_arch": [64, 64],
+}
+
+HYPERPARAMS_MAP = {
+    "ppo": HYPERPARAMS_PPO,
+    "rppo": HYPERPARAMS_RECURRENTPPO,
+    "ppornd": HYPERPARAMS_PPO_RND,
+    "qrdqn": HYPERPARAMS_QRDQN,
 }
 
 # Parse command-line arguments for training settings
@@ -70,20 +127,23 @@ def main():
 
     # Instantiate agent class
     AgentCls = get_agent_class(algo)
+
+    algo_key = algo.lower()
+    hyperparams = HYPERPARAMS_MAP.get(algo_key)
+    if hyperparams is None:
+        raise ValueError(f"No hyperparameters defined for algorithm: {algo_key}")
+    
     print(f"Starting training for {algo.upper()} on {env_id}")
     print(f"Settings: steps={total_steps}, seed={seed}, n_envs={n_envs}")
-    print(f"Hyperparameters: {HYPERPARAMS}")
-
-    # Create and train the agent
+    print(f"Hyperparameters: {hyperparams}")
     agent = AgentCls(
         env_id,
         total_steps=total_steps,
         seed=seed,
         n_envs=n_envs,
         log_episodes=True,
-        **HYPERPARAMS,
+        **hyperparams,
     )
-    agent.train()
 
     # Evaluate the trained policy
     print("\nEvaluating the trained policy over 50 episodes...")
