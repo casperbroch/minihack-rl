@@ -80,6 +80,11 @@ Outputs:
 ## Evaluation & Visualization
 This codebase provides two powerful tools for analyzing and comparing agent performance:
 
+<p align="center">
+  <img src="heatmaps.PNG" alt="Demo"/>
+</p>
+
+
 ### `run_plots.py` - Automated Metric Visualization
 This script loads training logs (CSV files), aggregates them per algorithm, and generates:
 
