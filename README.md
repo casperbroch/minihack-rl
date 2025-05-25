@@ -4,7 +4,7 @@ By [Casper Bröcheler](https://github.com/casperbroch)
 This repository provides a modular and extensible reinforcement learning (RL) framework designed for experiments in [MiniHack](https://github.com/samvelyan/minihack), a suite of procedurally generated environments for challenging agent learning tasks. It enables easy training, evaluation, and hyperparameter optimization of various deep RL algorithms using the [Stable Baselines3](https://github.com/DLR-RM/stable-baselines3) library and its extensions.
 
 <p align="center">
-  <img src="data/videos/README/ezgif-8e5c0ca1cc0ac7.gif" alt="Demo"/>
+  <img src="gifminihack.gif" alt="Demo"/>
 </p>
 
 ## What You Can Do
