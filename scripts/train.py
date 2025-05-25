@@ -144,6 +144,7 @@ def main():
         log_episodes=True,
         **hyperparams,
     )
+    agent.train()
 
     # Evaluate the trained policy
     print("\nEvaluating the trained policy over 50 episodes...")
